@@ -14,13 +14,30 @@ library(tidyverse)
 data <- read_csv('data/oage_bear.csv') 
 
 #analysis
-lm23 <- lm(oage_3 ~ oage_2 , data = data)
-lm230 <- lm(oage_3 ~ oage_2 + 0, data = data)
+lm32 <- lm(oage_3 ~ oage_2 , data = data)
 summary(lm23)
 layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
-plot(lm23) # seems reasonalbly normal.
+plot(lm32) # seems reasonalbly normal.
 
-anova(lm23, lm230) #checkig nested model
+ggplot(data, aes(oage_2, oage_3)) +
+  geom_point() +
+  stat_smooth(method = "lm") +
+  theme_bw()
+
+data <- data %>%
+  mutate(ln_oage_3 = ln(oage_3))
+
+lmln32 <- lm(ln_oage_3 ~ oage_2 , data = data)
+summary(lmln32)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(lmln32) # seems reasonalbly normal.
+
+ggplot(data, aes(oage_2, oage_3)) +
+  geom_point(label = year) +
+  stat_smooth(method = "lm") +
+  theme_bw()
+
+
 
 
 # data2 ----
