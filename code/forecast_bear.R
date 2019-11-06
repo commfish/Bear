@@ -8,63 +8,143 @@
 library(tidyverse)  
 #library(FNGr)
 #theme_set(theme_sleek())
+library(ggrepel)
+library(ggpubr)
+library(grid)
+library(broom)#for cleaning up data, used in predction
+library(caret)#used for cross validation 
 #source('code/functions.R')
+options(scipen = 999)
+set.seed(100) # for reproducible results
 
 # data ----
-data <- read_csv('data/oage_bear.csv') 
+data <- read_csv('data/oage_bear.csv') %>%
+  filter(year > 1989)
 
-#analysis
-lm32 <- lm(oage_3 ~ oage_2 , data = data)
-summary(lm23)
-layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
-plot(lm32) # seems reasonalbly normal.
+(last_yr <- max(data$year, na.rm =TRUE))
+(this_yr <- last_yr +1)
+(next_yr <- this_yr + 1)
 
-ggplot(data, aes(oage_2, oage_3)) +
-  geom_point() +
-  stat_smooth(method = "lm") +
-  theme_bw()
+# check this particularly that this_yr-2 is capturing the right data point once all the data is entered
+new_data <- data %>%
+  filter(year == this_yr-2) %>%
+  select(oage_2)
 
-data <- data %>%
-  mutate(ln_oage_3 = ln(oage_3))
-
-lmln32 <- lm(ln_oage_3 ~ oage_2 , data = data)
-summary(lmln32)
-layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
-plot(lmln32) # seems reasonalbly normal.
-
-ggplot(data, aes(oage_2, oage_3)) +
-  geom_point(label = year) +
-  stat_smooth(method = "lm") +
-  theme_bw()
-
-
-
-
-# data2 ----
-#more processing
-data <- data %>%
+#more processing data long
+data_l <- data %>%
   gather(key = oage, value = fish, oage_1:oage_4)
+
+#check missing values There should be some for the older ages since those fish haven't returned yet
+data_l[!complete.cases(data_l),]
+
+#IF only the most recent years for age classes are missing remove them.   ... other wise figure out why they are missing!
+data_l <- na.omit(data_l)  
+
+data_l <- data_l %>%
+  separate(oage, c("do_delete", "oage")) %>%
+  select(-do_delete) 
+
+data_l$oage <- as_factor(data_l$oage)
+
+(med <- data_l %>%
+    group_by(oage) %>%
+    summarize(med = median(tail(na.omit(fish), 10))))
+
+med$med[1:4]
+
+# analysis ----
+
+#model 1 ----
+lm32 <- lm(oage_3 ~ oage_2 , data = data)
+summary(lm32)
+#to annotate the graph need library(grid)
+rsq <- summary(lm32)$adj.r.squared
+pvalue <- summary(lm32)$coefficients[2,4]
+rp <- paste0("adj.r^2 = ", round(rsq,2), "  pvalue = ", round(pvalue, 3))
+
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(lm32) # check for normality
+
+(pred3 <- predict(lm32, newdata = new_data))
+
+newpoint <- broom::augment(lm32, newdata = new_data)
+(pred <- predict(lm32, newdata = new_data, interval = "prediction", level = 0.95))
+lwr <- pred[2]
+upr <- pred[3]
+predict(lm32, newdata = new_data, interval = "confidence", level = 0.95)
+
+#Use to make 95% CI and PI 
+minoage_2 <- min(data$oage_2, na.rm = TRUE)
+maxoage_2 <- max(data$oage_2, na.rm = TRUE)
+predx <- data.frame(oage_2 = seq(from = minoage_2, to = maxoage_2, by = (maxoage_2-minoage_2)/19))
+
+# ... confidence interval
+conf.int <- cbind(predx, predict(lm32, newdata = predx, interval = "confidence", level = 0.95))
+
+# ... prediction interval
+pred.int <- cbind(predx, predict(lm32, newdata = predx, interval = "prediction", level = 0.95))
+
+g.pred <- ggplot(pred.int, aes(x = oage_2, y = fit)) +
+  geom_point(data = data, aes(x = oage_2, y = oage_3)) + #plots all the points
+  geom_text_repel(data = data, aes(x = oage_2, y = oage_3, label = year)) +
+  geom_smooth(data = pred.int, aes(ymin = lwr, ymax = upr), stat = "identity") + # prediction interval
+  geom_point(data = newpoint, aes(y = .fitted), size = 3, color = "red") + # adds this years new point
+  geom_text_repel(data = newpoint, aes(x = oage_2, y = .fitted, label = round(.fitted, 0 )), adj = 1) +  
+  geom_smooth(data = conf.int, aes(ymin = lwr, ymax = upr), stat = "identity") + #confidence interval
+  #annotate("text", label = rp, x = 205000, y = 550000) + 
+  stat_regline_equation(label.x = 100000, label.y = 600000) +
+  theme_bw() +
+  xlab("ocean age 2") +
+  ylab("ocean age 3") #+ #ggtitle("oage_3 vs oage_2")
+g.pred  
+ggsave(filename = paste0("figures/oage_3_oage_2", ".png", sep = ""), device = png(), width = 7, height = 9, units = "in", dpi = 300)
+
+#Repeated K- fold Cross validation
 
 #check missing values There should be some for the older ages since those fish haven't returned yet
 data[!complete.cases(data),]
 
 #IF only the most recent years for age classes are missing remove them.   ... other wise figure out why they are missing!
-data <- na.omit(data)  
+data_cv <- na.omit(data)  #can't have NA's for cross validation.
+data <- data_cv
+# define training control 
+train_control <- trainControl(method = "cv", number = 8)
+train_control <- trainControl(method = "repeatedcv", number = 7, repeats = 4)
+#I used number of K-folds = 7 since I have 7*4 = 28 years for data
+length(data$year)
 
+# train the model
+model <- train(oage_3 ~ oage_2, data = data_cv, trControl=train_control, method="lm")
+# summarize results
+print(model)
+?`caret-internal`
+
+
+
+#model 2 ----
 data <- data %>%
-  separate(oage, c("do_delete", "oage")) %>%
-  select(-do_delete) 
+  mutate(ln_oage_3 = log(oage_3))
 
-data$oage <- as_factor(data$oage)
+lmln32 <- lm(ln_oage_3 ~ oage_2 , data = data)
+summary(lmln32)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
+plot(lmln32) # seems reasonably normal.
+(pred3 <-exp(predict(lmln32, newdata = new_data)))
 
-(med <- data %>%
-  group_by(oage) %>%
-  #tail()
-  summarize(med = median(tail(na.omit(fish), 10))))
+ggplot(data, aes(oage_2, ln_oage_3)) +
+  geom_point() +
+  stat_smooth(method = "lm") +
+  theme_bw()
 
-med$med[1]
+dev.off()
 
 
+# median return by size ----
+
+
+#forecast
+
+bear_f <- sum(med$med[1:2], pred3, med$med[4])
 
 # data different way ----
   
@@ -75,9 +155,6 @@ med$med[1]
 
 
 # analysis ----
-(last_yr <- max(data$year, na.rm =TRUE))
-(this_yr <- last_yr +1)
-(next_yr <- this_yr + 1)
 
 
 
@@ -85,9 +162,4 @@ med$med[1]
 
 
 
-# eda ----
 
-ggplot(iris, aes(sepal_length, sepal_width, color=Species)) + 
-  geom_point() +
-  ylab('Sepal Width') + 
-  xlab('Sepal Length')
