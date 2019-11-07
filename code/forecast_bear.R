@@ -190,6 +190,8 @@ upr95 <- sum(quant$upr95[1:2], pred[3], quant$upr95[4])
 bear_f <- data.frame(est, lwr95, upr95)
 bear_f$est
 
+#try committing again
+
 # data different way ----
   
 
