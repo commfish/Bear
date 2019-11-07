@@ -13,6 +13,7 @@ library(ggpubr)
 library(grid)
 library(broom)#for cleaning up data, used in predction
 library(caret)#used for cross validation 
+library(Metrics)
 #source('code/functions.R')
 options(scipen = 999)
 set.seed(100) # for reproducible results
@@ -46,13 +47,33 @@ data_l <- data_l %>%
 
 data_l$oage <- as_factor(data_l$oage)
 
-(med <- data_l %>%
+(quant <- data_l %>%
     group_by(oage) %>%
-    summarize(med = median(tail(na.omit(fish), 10))))
+    summarize(lwr95 = quantile(tail(na.omit(fish), 10), c(0.05)), 
+              med = median(tail(na.omit(fish), 10)),
+              upr95 = quantile(tail(na.omit(fish), 10), c(.95))))
 
-med$med[1:4]
+quant$med[1:4]
 
 # analysis ----
+
+#mape <- function(actual, predicted){ # this is now done using library(Metrics).
+#  mean(abs((actual - predicted)/actual))
+#}
+#mae(actual, predicted)
+
+my_exp_summary <- function (data, lev = NULL, model = NULL) {
+  c(RMSE = sqrt(mean((expm1(data$obs) - expm1(data$pred)^2))),
+    Rsquared = summary(lm(pred ~ obs, data))$r.squared,
+    MAE = mae(expm1(data$obs), expm1(data$pred)),
+    MAPEEXP = mape(expm1(data$obs), expm1(data$pred)))
+}
+my_summary <- function (data, lev = NULL, model = NULL) {
+  c(RMSE = sqrt(mean((data$obs -data$pred)^2)),
+    Rsquared = summary(lm(pred ~ obs, data))$r.squared,
+    MAE = mae((data$obs), (data$pred)),
+    MAPE = mape((data$obs), (data$pred)))
+}
 
 #model 1 ----
 lm32 <- lm(oage_3 ~ oage_2 , data = data)
@@ -105,17 +126,19 @@ ggsave(filename = paste0("figures/oage_3_oage_2", ".png", sep = ""), device = pn
 data[!complete.cases(data),]
 
 #IF only the most recent years for age classes are missing remove them.   ... other wise figure out why they are missing!
-data_cv <- na.omit(data)  #can't have NA's for cross validation.
-data <- data_cv
+data_cv <- data %>%
+  select(oage_2, oage_3) %>%
+  na.omit()  #can't have NA's for cross validation.
+#data <- data_cv
 # define training control 
-train_control <- trainControl(method = "cv", number = 8)
-train_control <- trainControl(method = "repeatedcv", number = 7, repeats = 4)
+train_control <- trainControl(method = "cv", number = 4, summaryFunction = my_summary)
+train_control <- trainControl(method = "repeatedcv", number = 3, repeats = 8, summaryFunction = my_summary)
 #I used number of K-folds = 7 since I have 7*4 = 28 years for data
 length(data$year)
 
-# train the model
+# train the model Warning messages are okay.
 model <- train(oage_3 ~ oage_2, data = data_cv, trControl=train_control, method="lm")
-# summarize results
+# summarize result
 print(model)
 ?`caret-internal`
 
@@ -128,7 +151,7 @@ data <- data %>%
 lmln32 <- lm(ln_oage_3 ~ oage_2 , data = data)
 summary(lmln32)
 layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
-plot(lmln32) # seems reasonably normal.
+plot(lmln32) # check for normality.
 (pred3 <-exp(predict(lmln32, newdata = new_data)))
 
 ggplot(data, aes(oage_2, ln_oage_3)) +
@@ -138,13 +161,34 @@ ggplot(data, aes(oage_2, ln_oage_3)) +
 
 dev.off()
 
+data_cv <- data %>%
+  select(oage_2, ln_oage_3) %>%
+  na.omit()  #can't have NA's for cross validation.
+#data <- data_cv
+# define training control 
+train_control <- trainControl(method = "cv", number = 3, summaryFunction = my_exp_summary)
+train_control <- trainControl(method = "repeatedcv", number = 3, repeats = 8, summaryFunction = my_exp_summary)
+#I used number of K-folds = 3 so that there was still a good amount of data in each fold.
+length(data_cv$oage_2)
 
+# train the model
+model <- train(ln_oage_3 ~ oage_2, data = data_cv, trControl=train_control, method="lm")
+# summarize results
+print(model)
+?`caret-internal`
 # median return by size ----
 
 
 #forecast
+pred
+quant
 
-bear_f <- sum(med$med[1:2], pred3, med$med[4])
+lwr95 <- sum(quant$lwr95[1:2], pred[2], quant$lwr95[4])
+est <- sum(quant$med[1:2], pred[1], quant$med[4])
+upr95 <- sum(quant$upr95[1:2], pred[3], quant$upr95[4])
+
+bear_f <- data.frame(est, lwr95, upr95)
+bear_f$est
 
 # data different way ----
   
