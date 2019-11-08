@@ -92,7 +92,7 @@ plot(lm32) # check for normality
 
 newpoint <- broom::augment(lm32, newdata = new_data)
 (pred <- predict(lm32, newdata = new_data, interval = "prediction", level = 0.95))
-lwr <- pred[2]
+lwr <- pred[2] # needed for ggplot
 upr <- pred[3]
 predict(lm32, newdata = new_data, interval = "confidence", level = 0.95)
 
@@ -133,7 +133,7 @@ data_cv <- data %>%
   na.omit()  #can't have NA's for cross validation.
 #data <- data_cv
 # define training control 
-train_control <- trainControl(method = "cv", number = 4, summaryFunction = my_summary)
+train_control <- trainControl(method = "cv", number = 3, summaryFunction = my_summary)
 train_control <- trainControl(method = "repeatedcv", number = 3, repeats = 8, summaryFunction = my_summary)
 #I used number of K-folds = 7 since I have 7*4 = 28 years for data
 length(data$year)
@@ -164,12 +164,34 @@ lwr <- pred[2]
 upr <- pred[3]
 exp(predict(lmln32, newdata = new_data, interval = "confidence", level = 0.95))
 
-ggplot(data, aes(oage_2, ln_oage_3)) +
-  geom_point() +
-  stat_smooth(method = "lm") +
-  theme_bw()
+#Use to make 95% CI and PI 
+minoage_2 <- min(data$oage_2, na.rm = TRUE)
+maxoage_2 <- max(data$oage_2, na.rm = TRUE)
+predx <- data.frame(oage_2 = seq(from = minoage_2, to = maxoage_2, by = (maxoage_2-minoage_2)/19))
 
-dev.off()
+# ... confidence interval
+conf.int <- cbind(predx, predict(lmln32, newdata = predx, interval = "confidence", level = 0.95))
+
+# ... prediction interval
+pred.int <- cbind(predx, predict(lmln32, newdata = predx, interval = "prediction", level = 0.95))
+
+
+g.pred <- ggplot(pred.int, aes(x = oage_2, y = fit)) +
+  geom_point(data = data, aes(x = oage_2, y = ln_oage_3)) + #plots all the points
+  geom_text_repel(data = data, aes(x = oage_2, y = ln_oage_3, label = year)) +
+  geom_smooth(data = pred.int, aes(ymin = lwr, ymax = upr), stat = "identity") + # prediction interval
+  geom_point(data = newpoint, aes(y = .fitted), size = 3, color = "red") + # adds this years new point
+  geom_text_repel(data = newpoint, aes(x = oage_2, y = .fitted, label = round(.fitted, 0 )), adj = 1) +  
+  geom_smooth(data = conf.int, aes(ymin = lwr, ymax = upr), stat = "identity") + #confidence interval
+  #annotate("text", label = rp, x = 205000, y = 550000) + 
+  stat_regline_equation(label.x = 100000, label.y = 14) +
+  theme_bw() +
+  xlab("ocean age 2") +
+  ylab("ocean age 3") #+ #ggtitle("oage_3 vs oage_2")
+g.pred  
+ggsave(filename = paste0("figures/ln_oage_3_oage_2", ".png", sep = ""), device = png(), width = 7, height = 9, units = "in", dpi = 300)
+
+#R
 
 data_cv <- data %>%
   select(oage_2, ln_oage_3) %>%
