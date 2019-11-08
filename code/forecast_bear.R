@@ -180,24 +180,9 @@ conf.int <- cbind(predx, exp(predict(lmln32, newdata = predx, interval = "confid
 # ... prediction interval
 pred.int <- cbind(predx, exp(predict(lmln32, newdata = predx, interval = "prediction", level = 0.95)))
 
-
 g.pred <- ggplot(pred.int, aes(x = oage_2, y = fit)) +
-  geom_point(data = data, aes(x = oage_2, y = ln_oage_3)) + #plots all the points
-  geom_text_repel(data = data, aes(x = oage_2, y = ln_oage_3, label = year)) +
   geom_smooth(data = pred.int, aes(ymin = lwr, ymax = upr), stat = "identity") + # prediction interval
-  geom_point(data = newpoint, aes(y = .fitted), size = 3, color = "red") + # adds this years new point
-  geom_text_repel(data = newpoint, aes(x = oage_2, y = .fitted, label = round(.fitted, 0 )), adj = 1) +  
   geom_smooth(data = conf.int, aes(ymin = lwr, ymax = upr), stat = "identity") + #confidence interval
-  #annotate("text", label = rp, x = 205000, y = 550000) + 
-  stat_regline_equation(label.x = 100000, label.y = 14) +
-  theme_bw() +
-  xlab("ocean age 2") +
-  ylab("ocean age 3") #+ #ggtitle("oage_3 vs oage_2")
-g.pred  
-
-g.pred <- ggplot(pred.int, aes(x = oage_2, y = exp(fit))) +
-  geom_smooth(data = pred.int, aes(ymin = exp(lwr), ymax = exp(upr)), stat = "identity") + # prediction interval
-  geom_smooth(data = conf.int, aes(ymin = exp(lwr), ymax = exp(upr)), stat = "identity") + #confidence interval
   geom_point(data = newpoint, aes(y = exp(.fitted)), size = 3, color = "red") + # adds this years new point
   geom_text_repel(data = newpoint, aes(x = oage_2, y = exp(.fitted), label = round(exp(.fitted), 0 )), adj = 4) +
   geom_point(data = data, aes(x = oage_2, y = oage_3)) + #plots all the points
@@ -209,11 +194,9 @@ g.pred <- ggplot(pred.int, aes(x = oage_2, y = exp(fit))) +
   ylab("ocean age 3") + #+ #ggtitle("oage_3 vs oage_2") +
   coord_cartesian(ylim = c(0, 500000), xlim = c(0, 850000))
 g.pred 
-
-dev.off()
 ggsave(filename = paste0("figures/ln_oage_3_oage_2", ".png", sep = ""), device = png(), width = 7, height = 9, units = "in", dpi = 300)
 
-#R
+# cross validate the model
 
 data_cv <- data %>%
   select(oage_2, ln_oage_3) %>%
@@ -229,7 +212,6 @@ length(data_cv$oage_2)
 model <- train(ln_oage_3 ~ oage_2, data = data_cv, trControl=train_control, method="lm")
 # summarize results
 print(model)
-?`caret-internal`
 # median return by size ----
 
 
