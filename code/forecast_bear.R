@@ -53,9 +53,9 @@ data_l$oage <- as_factor(data_l$oage)
 (quant <- data_l %>%
     group_by(oage) %>%
     na.omit(fish) %>%
-    summarize(lwr95 = quantile(tail(fish, 10), c(0.10)), 
-              med = median(tail(fish, 10)),
-              upr95 = quantile(tail(fish, 10), c(.90))))
+    summarize(lwr90 = quantile(tail(fish, 10), c(0.10)), 
+              est = median(tail(fish, 10)),
+              upr90 = quantile(tail(fish, 10), c(.90))))
 
 # analysis ----
 
@@ -108,18 +108,20 @@ conf.int <- cbind(predx, predict(lm32, newdata = predx, interval = "confidence",
 pred.int <- cbind(predx, predict(lm32, newdata = predx, interval = "prediction", level = 0.95))
 
 g.pred <- ggplot(pred.int, aes(x = oage_2, y = fit)) +
+  geom_smooth(data = pred.int, aes(ymin = lwr, ymax = upr), stat = "identity") + # prediction interval
+  geom_smooth(data = conf.int, aes(ymin = lwr, ymax = upr), stat = "identity") + #confidence interval
   geom_point(data = data, aes(x = oage_2, y = oage_3)) + #plots all the points
   geom_text_repel(data = data, aes(x = oage_2, y = oage_3, label = year)) +
-  geom_smooth(data = pred.int, aes(ymin = lwr, ymax = upr), stat = "identity") + # prediction interval
   geom_point(data = newpoint, aes(y = .fitted), size = 3, color = "red") + # adds this years new point
   geom_text_repel(data = newpoint, aes(x = oage_2, y = .fitted, label = round(.fitted, 0 )), adj = 1) +  
-  geom_smooth(data = conf.int, aes(ymin = lwr, ymax = upr), stat = "identity") + #confidence interval
   #annotate("text", label = rp, x = 205000, y = 550000) + 
   stat_regline_equation(label.x = 100000, label.y = 600000) +
   theme_bw() +
+  coord_cartesian(ylim = c(0, 500000), xlim = c(0, 850000)) +
   xlab("ocean age 2") +
   ylab("ocean age 3") #+ #ggtitle("oage_3 vs oage_2")
 g.pred  
+dev.off()
 ggsave(filename = paste0("figures/oage_3_oage_2", ".png", sep = ""), device = png(), width = 7, height = 9, units = "in", dpi = 300)
 
 #Repeated K- fold Cross validation
@@ -154,6 +156,9 @@ print(model)
 
 lmln32 <- lm(ln_oage_3 ~ oage_2 , data = data)
 summary(lmln32)
+lmln32 <- lm(log(oage_3)~ oage_2 , data = data)
+ 
+
 layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
 plot(lmln32) # check for normality.
 (pred3 <-exp(predict(lmln32, newdata = new_data)))
@@ -170,10 +175,10 @@ maxoage_2 <- max(data$oage_2, na.rm = TRUE)
 predx <- data.frame(oage_2 = seq(from = minoage_2, to = maxoage_2, by = (maxoage_2-minoage_2)/19))
 
 # ... confidence interval
-conf.int <- cbind(predx, predict(lmln32, newdata = predx, interval = "confidence", level = 0.95))
+conf.int <- cbind(predx, exp(predict(lmln32, newdata = predx, interval = "confidence", level = 0.95)))
 
 # ... prediction interval
-pred.int <- cbind(predx, predict(lmln32, newdata = predx, interval = "prediction", level = 0.95))
+pred.int <- cbind(predx, exp(predict(lmln32, newdata = predx, interval = "prediction", level = 0.95)))
 
 
 g.pred <- ggplot(pred.int, aes(x = oage_2, y = fit)) +
@@ -189,6 +194,23 @@ g.pred <- ggplot(pred.int, aes(x = oage_2, y = fit)) +
   xlab("ocean age 2") +
   ylab("ocean age 3") #+ #ggtitle("oage_3 vs oage_2")
 g.pred  
+
+g.pred <- ggplot(pred.int, aes(x = oage_2, y = exp(fit))) +
+  geom_smooth(data = pred.int, aes(ymin = exp(lwr), ymax = exp(upr)), stat = "identity") + # prediction interval
+  geom_smooth(data = conf.int, aes(ymin = exp(lwr), ymax = exp(upr)), stat = "identity") + #confidence interval
+  geom_point(data = newpoint, aes(y = exp(.fitted)), size = 3, color = "red") + # adds this years new point
+  geom_text_repel(data = newpoint, aes(x = oage_2, y = exp(.fitted), label = round(exp(.fitted), 0 )), adj = 4) +
+  geom_point(data = data, aes(x = oage_2, y = oage_3)) + #plots all the points
+  geom_text_repel(data = data, aes(x = oage_2, y = oage_3, label = year)) +
+  #annotate("text", label = rp, x = 205000, y = 550000) + 
+  #stat_regline_equation(label.x = 100000, label.y = 450000) +
+  theme_bw() +
+  xlab("ocean age 2") +
+  ylab("ocean age 3") + #+ #ggtitle("oage_3 vs oage_2") +
+  coord_cartesian(ylim = c(0, 500000), xlim = c(0, 850000))
+g.pred 
+
+dev.off()
 ggsave(filename = paste0("figures/ln_oage_3_oage_2", ".png", sep = ""), device = png(), width = 7, height = 9, units = "in", dpi = 300)
 
 #R
@@ -214,25 +236,28 @@ print(model)
 #forecast
 pred
 quant
+quant[3,3] <- pred[1]
+quant[3,2] <- pred[2]
+quant[3,4] <- pred[3]
 
-lwr95 <- sum(quant$lwr95[1:2], pred[2], quant$lwr95[4])
-est <- sum(quant$med[1:2], pred[1], quant$med[4])
-upr95 <- sum(quant$upr95[1:2], pred[3], quant$upr95[4])
+#check it matches worksheet.
+lwr <- sum(quant$lwr90[1:2], quant$lwr90[4])
+est <- sum(quant$est[1:2], quant$est[4])
+upr <- sum(quant$upr90[1:2],  quant$upr90[4])
 
-bear_f <- data.frame(est, lwr95, upr95)
+lwr <- sum(quant$lwr90[1:2], pred[2], quant$lwr90[4])
+est <- sum(quant$est[1:2], pred[1], quant$est[4])
+upr <- sum(quant$upr90[1:2], pred[3], quant$upr90[4])
+
+# forecast ----
+quant %>%
+  summarize(lwr = sum(lwr),
+          est = sum(est),
+          upr = sum(upr))
+
+(bear_f <- data.frame(est, lwr, upr))
 bear_f$est
 
-#try committing again
-
-# data different way ----
-  
-
-#data <- read_csv('data/oage_bear.csv')
-
-
-
-
-# analysis ----
 
 
 
