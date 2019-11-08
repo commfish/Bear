@@ -20,7 +20,10 @@ set.seed(100) # for reproducible results
 
 # data ----
 data <- read_csv('data/oage_bear.csv') %>%
-  filter(year > 1989)
+  filter(year > 1991) %>%
+  mutate(ln_oage_3 = log(oage_3))
+
+tail(data,13)
 
 (last_yr <- max(data$year, na.rm =TRUE))
 (this_yr <- last_yr +1)
@@ -49,11 +52,10 @@ data_l$oage <- as_factor(data_l$oage)
 
 (quant <- data_l %>%
     group_by(oage) %>%
-    summarize(lwr95 = quantile(tail(na.omit(fish), 10), c(0.05)), 
-              med = median(tail(na.omit(fish), 10)),
-              upr95 = quantile(tail(na.omit(fish), 10), c(.95))))
-
-quant$med[1:4]
+    na.omit(fish) %>%
+    summarize(lwr95 = quantile(tail(fish, 10), c(0.10)), 
+              med = median(tail(fish, 10)),
+              upr95 = quantile(tail(fish, 10), c(.90))))
 
 # analysis ----
 
@@ -145,14 +147,22 @@ print(model)
 
 
 #model 2 ----
-data <- data %>%
-  mutate(ln_oage_3 = log(oage_3))
+#trying to recreate what was done in excel
+#data <- data %>%
+#  filter(year < 2016)
+
 
 lmln32 <- lm(ln_oage_3 ~ oage_2 , data = data)
 summary(lmln32)
 layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
 plot(lmln32) # check for normality.
 (pred3 <-exp(predict(lmln32, newdata = new_data)))
+
+newpoint <- broom::augment(lmln32, newdata = new_data)
+(pred <- exp(predict(lmln32, newdata = new_data, interval = "prediction", level = 0.95)))
+lwr <- pred[2]
+upr <- pred[3]
+exp(predict(lmln32, newdata = new_data, interval = "confidence", level = 0.95))
 
 ggplot(data, aes(oage_2, ln_oage_3)) +
   geom_point() +
