@@ -12,7 +12,7 @@ library(grid)
 library(broom)#for cleaning up data, used in predction
 library(caret)#used for cross validation 
 library(Metrics)
-#source('code/functions.R')
+
 options(scipen = 999)
 set.seed(100) # for reproducible results
 
