@@ -6,8 +6,6 @@
 
 # load ----
 library(tidyverse)  
-#library(FNGr)
-#theme_set(theme_sleek())
 library(ggrepel)
 library(ggpubr)
 library(grid)
@@ -89,8 +87,6 @@ dev.off()
 layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
 plot(lm32) # check for normality
 
-(pred3 <- predict(lm32, newdata = new_data))
-
 newpoint <- broom::augment(lm32, newdata = new_data)
 (pred <- predict(lm32, newdata = new_data, interval = "prediction", level = 0.80))
 lwr <- pred[2] # needed for ggplot
@@ -148,7 +144,9 @@ model <- train(oage_3 ~ oage_2, data = data_cv, trControl=train_control, method=
 # summarize result
 print(model)
 
-model2run <- function(run = 0){#model 2 ----
+#model 2 ----
+#this model is in a function call to prevent it from running since it was not the model chosen.
+model2run <- function(run = 0){
    #trying to recreate what was done in excel
    data <- data %>%
      mutate(ln_oage_3 = log(oage_3)) %>%
@@ -161,7 +159,6 @@ model2run <- function(run = 0){#model 2 ----
    dev.off()
    layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
    plot(lmln32) # check for normality.
-   (pred3 <-exp(predict(lmln32, newdata = new_data)))
    
    newpoint <- broom::augment(lmln32, newdata = new_data)
    (pred <- exp(predict(lmln32, newdata = new_data, interval = "prediction", level = 0.80)))
@@ -212,10 +209,9 @@ model2run <- function(run = 0){#model 2 ----
    model <- train(ln_oage_3 ~ oage_2, data = data_cv, trControl=train_control, method="lm")
    # summarize results
    print(model)
-   }
+}
 
 # median return by size ----
-
 
 #forecast
 pred
@@ -245,12 +241,3 @@ bear_f$est
 #additional for report ----
 escapement_goal <- 156000
 (harvest_est <- bear_f$est - escapement_goal )
-
-# 10 year average returns
-
-
-
-
-
-
-
