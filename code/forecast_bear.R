@@ -6,21 +6,23 @@
 
 # load ----
 library(tidyverse)  
-library(ggrepel)
-library(ggpubr)
-library(grid)
+library(ggrepel)# use in graphing
+library(ggpubr)# use in graphing
+library(grid)# use in graphing
 library(broom)#for cleaning up data, used in predction
 library(caret)#used for cross validation 
-library(Metrics)
+library(Metrics)#used for cross validation
 
 options(scipen = 999)
 set.seed(100) # for reproducible results
 
 # data ----
+#Note oage = ocean age = years in the ocean.
 
 data <- read_csv('data/oage_bear20.csv') %>%
   filter(year > 1991) #%>%
   #mutate(ln_oage_3 = log(oage_3))
+
 
 # Check for complete data, Should only include NAs for most recent years
 data[!complete.cases(data),]
@@ -72,21 +74,21 @@ data_l$oage <- as_factor(data_l$oage)
 
 # For transformed data
 my_exp_summary <- function(data, lev = NULL, model = NULL) {
-  c(RMSE = sqrt(mean((expm1(data$obs) - expm1(data$pred)^2))), # root mean square error
+  c(#RMSE = sqrt(mean((expm1(data$obs) - expm1(data$pred)^2))), # root mean square error
     Rsquared = summary(lm(pred ~ obs, data))$r.squared, # coefficient of variation
     MAE = mae(expm1(data$obs), expm1(data$pred)), # average difference
     MAPEEXP = Metrics::mape(expm1(data$obs), expm1(data$pred))) # mean absolute perc error
 }
 
 my_summary <- function(data, lev = NULL, model = NULL) {
-  c(RMSE = sqrt(mean((data$obs -data$pred)^2)),
+  c(#RMSE = sqrt(mean((data$obs -data$pred)^2)),
     Rsquared = summary(lm(pred ~ obs, data))$r.squared,
     MAE = mae((data$obs), (data$pred)),
     MAPE = mape((data$obs), (data$pred)))
 }
 
 #model 1 ----
-
+#This is a linear model where ocean age 3 returns are predicted based on ocean age 2 returns
 lm32 <- lm(oage_3 ~ oage_2 , data = data)
 summary(lm32)
 #to annotate the graph need library(grid)
@@ -158,7 +160,7 @@ print(model)
 #model 2 ---- this model is in a function call to prevent it from running since
 #it was not the model chosen.
 model2run <- function(run = 0){
-   #trying to recreate what was done in excel
+   #This is a linear model where log transformed ocean age 3 returns are predicted based on ocean age 2 returns
    data <- data %>%
      mutate(ln_oage_3 = log(oage_3)) %>%
      filter(year > 1989)
@@ -253,3 +255,4 @@ bear_f$est
 #additional for report ----
 escapement_goal <- 156000
 (harvest_est <- bear_f$est - escapement_goal )
+
