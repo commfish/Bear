@@ -17,9 +17,12 @@ options(scipen = 999)
 set.seed(100) # for reproducible results
 
 # data ----
+
 data <- read_csv('data/oage_bear20.csv') %>%
   filter(year > 1991) #%>%
   #mutate(ln_oage_3 = log(oage_3))
+
+# Check for complete data, Should only include NAs for most recent years
 data[!complete.cases(data),]
 tail(data,13)
 
@@ -27,19 +30,22 @@ tail(data,13)
 (this_yr <- last_yr +1)
 (next_yr <- this_yr + 1)
 
-# check this particularly that this_yr-2 is capturing the right data point once all the data is entered
+# check this particularly that this_yr-2 is capturing the right data point once
+# all the data is entered
 new_data <- data %>%
   filter(year == this_yr-2) %>%
   select(oage_2)
 
-#more processing data long
+# more processing data long
 data_l <- data %>%
   gather(key = oage, value = fish, c(oage_1:oage_4)) #, ln_oage_3))
 
-#check missing values There should be some for the older ages since those fish haven't returned yet
+# check missing values There should be some for the older ages since those fish
+# haven't returned yet
 data_l[!complete.cases(data_l),]
 
-#IF only the most recent years for age classes are missing remove them.   ... other wise figure out why they are missing!
+#IF only the most recent years for age classes are missing remove them.   ...
+#other wise figure out why they are missing!
 data_l <- na.omit(data_l)  
 
 data_l <- data_l %>%
@@ -48,27 +54,31 @@ data_l <- data_l %>%
 
 data_l$oage <- as_factor(data_l$oage)
 
-(quant <- data_l %>%
-    group_by(oage) %>%
-    na.omit(fish) %>%
-    summarize(lwr90 = quantile(tail(fish, 10), c(0.10)), 
-              est = median(tail(fish, 10)),
-              upr90 = quantile(tail(fish, 10), c(.90))))
-
 # analysis ----
+
+# For the ocean age 1, 2 and 4 fish. The expected return is the median value
+# from the past ten years.
+(quant <- data_l %>%
+   group_by(oage) %>%
+   na.omit(fish) %>%
+   summarize(lwr90 = quantile(tail(fish, 10), c(0.10)), 
+             est = median(tail(fish, 10)),
+             upr90 = quantile(tail(fish, 10), c(.90))))
 
 #mape <- function(actual, predicted){ # this is now done using library(Metrics).
 #  mean(abs((actual - predicted)/actual))
 #}
 #mae(actual, predicted)
 
-my_exp_summary <- function (data, lev = NULL, model = NULL) {
-  c(RMSE = sqrt(mean((expm1(data$obs) - expm1(data$pred)^2))),
-    Rsquared = summary(lm(pred ~ obs, data))$r.squared,
-    MAE = mae(expm1(data$obs), expm1(data$pred)),
-    MAPEEXP = mape(expm1(data$obs), expm1(data$pred)))
+# For transformed data
+my_exp_summary <- function(data, lev = NULL, model = NULL) {
+  c(RMSE = sqrt(mean((expm1(data$obs) - expm1(data$pred)^2))), # root mean square error
+    Rsquared = summary(lm(pred ~ obs, data))$r.squared, # coefficient of variation
+    MAE = mae(expm1(data$obs), expm1(data$pred)), # average difference
+    MAPEEXP = Metrics::mape(expm1(data$obs), expm1(data$pred))) # mean absolute perc error
 }
-my_summary <- function (data, lev = NULL, model = NULL) {
+
+my_summary <- function(data, lev = NULL, model = NULL) {
   c(RMSE = sqrt(mean((data$obs -data$pred)^2)),
     Rsquared = summary(lm(pred ~ obs, data))$r.squared,
     MAE = mae((data$obs), (data$pred)),
@@ -76,6 +86,7 @@ my_summary <- function (data, lev = NULL, model = NULL) {
 }
 
 #model 1 ----
+
 lm32 <- lm(oage_3 ~ oage_2 , data = data)
 summary(lm32)
 #to annotate the graph need library(grid)
@@ -133,7 +144,7 @@ data_cv <- data %>%
 
 data_cv[!complete.cases(data_cv),]
 #data <- data_cv
-# define training control use one fo the following lines
+# define training control use one of the following lines
 train_control <- trainControl(method = "cv", number = 3, summaryFunction = my_summary)
 train_control <- trainControl(method = "repeatedcv", number = 3, repeats = 8, summaryFunction = my_summary)
 #I used number of K-folds = 7 since I have 7*4 = 28 years for data
@@ -144,8 +155,8 @@ model <- train(oage_3 ~ oage_2, data = data_cv, trControl=train_control, method=
 # summarize result
 print(model)
 
-#model 2 ----
-#this model is in a function call to prevent it from running since it was not the model chosen.
+#model 2 ---- this model is in a function call to prevent it from running since
+#it was not the model chosen.
 model2run <- function(run = 0){
    #trying to recreate what was done in excel
    data <- data %>%
@@ -156,6 +167,7 @@ model2run <- function(run = 0){
    summary(lmln32)
    lmln32 <- lm(log(oage_3)~ oage_2 , data = data)
    
+   hist(resid(lm32))
    dev.off()
    layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page
    plot(lmln32) # check for normality.
